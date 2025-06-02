@@ -26,7 +26,7 @@ def fix_environment():
     print("Upgrading pip...")
     subprocess.run([python_path, "-m", "pip", "install", "--upgrade", "pip"], check=True)
     
-    # Install packages one by one to catch errors
+    # Install packages optimized for your specs (16 cores, 16GB RAM)
     packages = [
         "pandas>=1.5.0",
         "numpy>=1.21.0", 
@@ -36,37 +36,51 @@ def fix_environment():
         "optuna>=3.0.0",
         "pyarrow>=8.0.0",
         "scipy>=1.9.0",
-        "psutil>=5.9.0"
+        "psutil>=5.9.0",
+        "tqdm>=4.64.0"
     ]
     
-    failed_packages = []
-    
+    print("Installing packages optimized for your specs...")
     for package in packages:
         try:
             print(f"Installing {package}...")
             result = subprocess.run([pip_path, "install", package], 
-                                  capture_output=True, text=True)
+                                  capture_output=True, text=True, timeout=300)
             if result.returncode == 0:
                 print(f"✅ {package} installed successfully")
             else:
-                print(f"❌ Failed to install {package}")
-                failed_packages.append(package)
+                print(f"❌ Failed to install {package}: {result.stderr}")
+        except subprocess.TimeoutExpired:
+            print(f"⏰ {package} installation timed out")
         except Exception as e:
             print(f"❌ Error installing {package}: {e}")
-            failed_packages.append(package)
     
-    if failed_packages:
-        print(f"\n⚠️  Failed packages: {failed_packages}")
-        print("Trying alternative installation...")
-        
-        # Try installing without version constraints
-        simple_packages = [pkg.split('>=')[0] for pkg in failed_packages]
-        for package in simple_packages:
-            try:
-                subprocess.run([pip_path, "install", package], check=True)
-                print(f"✅ {package} installed (simple version)")
-            except:
-                print(f"❌ Still failed: {package}")
+    # Test imports
+    print("\nTesting imports...")
+    test_script = f'''
+import sys
+sys.path.append(r"{project_path}")
+try:
+    import pandas as pd
+    print("✅ pandas working")
+    import numpy as np
+    print("✅ numpy working")
+    import lightgbm as lgb
+    print("✅ lightgbm working")
+    import xgboost as xgb
+    print("✅ xgboost working")
+    import sklearn
+    print("✅ sklearn working")
+    print("🚀 All packages ready!")
+except Exception as e:
+    print(f"❌ Import error: {{e}}")
+'''
+    
+    with open("test_imports.py", "w") as f:
+        f.write(test_script)
+    
+    subprocess.run([python_path, "test_imports.py"])
+    os.remove("test_imports.py")
     
     print("\n✅ Environment fix complete!")
 
